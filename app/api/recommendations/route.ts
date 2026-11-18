@@ -1,4 +1,3 @@
-
 import { getEligibleRecommendations } from "../../../lib/recommendations";
 
 export async function GET(request: Request) {
@@ -15,10 +14,20 @@ export async function GET(request: Request) {
         );
     }
 
-    const results = getEligibleRecommendations(major, gpa);
+    try {
+        const results =
+            await getEligibleRecommendations(major, gpa);
 
-    return Response.json({
-        count: results.length,
-        recommendations: results,
-    });
+        return Response.json({
+            count: results.length,
+            recommendations: results,
+        });
+    } catch (error) {
+        console.error("Database query failed:", error);
+
+        return Response.json(
+            { error: "Gagal mengambil data rekomendasi" },
+            { status: 503 }
+        );
+    }
 }

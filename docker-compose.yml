@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: applyflow
+      POSTGRES_PASSWORD: applyflow_local_dev
+      POSTGRES_DB: applyflow
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - applyflow_postgres:/var/lib/postgresql/data
+
+volumes:
+  applyflow_postgres:

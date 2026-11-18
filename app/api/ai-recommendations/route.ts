@@ -42,7 +42,20 @@ export async function POST(request: Request) {
 
     const { major, gpa } = validation.data;
 
-    const eligible = getEligibleRecommendations(major, gpa);
+    let eligible: Awaited<
+        ReturnType<typeof getEligibleRecommendations>
+    >;
+
+    try {
+        eligible = await getEligibleRecommendations(major, gpa);
+    } catch (error) {
+        console.error("Database retrieval failed:", error);
+
+        return Response.json(
+            { error: "Database rekomendasi tidak tersedia" },
+            { status: 503 }
+        );
+    }
 
     if (eligible.length === 0) {
         return Response.json({
