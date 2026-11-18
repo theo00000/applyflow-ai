@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { pool } from "../../../lib/db";
+import { rerankChunks } from "../../../lib/reranker"
 
 const RequestSchema = z.object({
     question: z.string().trim().min(5).max(500),
@@ -81,12 +82,18 @@ export async function POST(request: Request) {
             [vector, opportunityId ?? null]
         );
 
+        const rankedResults = rerankChunks(
+            question,
+            result.rows
+        );
+
         return Response.json({
             question,
-            count: result.rows.length,
-            results: result.rows,
+            count: rankedResults.length,
+            results: rankedResults,
             embeddingTokens: response.usage.total_tokens,
         });
+
     } catch (error) {
         console.error(
             "Semantic search failed:",

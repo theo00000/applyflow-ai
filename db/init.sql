@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
 
     CONSTRAINT valid_gpa CHECK (
         minimum_gpa >= 0 AND minimum_gpa <= 4
+        ($2::integer IS NULL OR o.id = $2)
     )
 );
 
