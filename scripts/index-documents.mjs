@@ -83,6 +83,12 @@ async function main() {
                     `Tokens: ${response.usage.total_tokens}`
                 );
             }
+
+            // Source changes may reduce the number of chunks. Remove stale tails.
+            await pool.query(
+                `DELETE FROM opportunity_chunks WHERE source_id = $1 AND chunk_index >= $2`,
+                [source.id, chunks.length]
+            );
         }
 
         console.log("Document indexing completed.");

@@ -30,15 +30,18 @@ export async function GET(request: Request) {
         const result = await pool.query<SourceRow>(
             `
       SELECT
-        id,
-        opportunity_id AS "opportunityId",
-        source_title AS "sourceTitle",
-        source_url AS "sourceUrl",
-        content,
-        is_verified AS "isVerified"
-      FROM opportunity_sources
-      WHERE opportunity_id = $1
-      ORDER BY id ASC
+        s.id,
+        s.opportunity_id AS "opportunityId",
+        s.source_title AS "sourceTitle",
+        s.source_url AS "sourceUrl",
+        s.content,
+        s.is_verified AS "isVerified"
+      FROM opportunity_sources AS s
+      JOIN opportunities AS o ON o.id = s.opportunity_id
+      WHERE s.opportunity_id = $1
+        AND o.approved = TRUE
+        AND o.deadline >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date
+      ORDER BY s.id ASC
       `,
             [opportunityId]
         );

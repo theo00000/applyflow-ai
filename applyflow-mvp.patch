@@ -1,0 +1,1226 @@
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..e8c5a63
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,5 @@
++# Copy to .env.local; never commit your real keys.
++OPENAI_API_KEY=replace-with-your-key
++OPENAI_MODEL=gpt-5-mini
++DATABASE_URL=postgresql://applyflow:applyflow_dev@127.0.0.1:5434/applyflow
++RAG_BASE_URL=http://localhost:3000
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000..833b98c
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,23 @@
++name: CI
++on:
++  push:
++  pull_request:
++jobs:
++  verify:
++    runs-on: ubuntu-latest
++    env:
++      # Build-time only. No DB connections or paid OpenAI calls are executed by this workflow.
++      DATABASE_URL: postgresql://unused:unused@127.0.0.1:5432/unused
++      OPENAI_API_KEY: ci-placeholder-not-a-real-key
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-node@v4
++        with:
++          node-version: '22'
++      - name: Install dependencies
++        run: |
++          if test -f package-lock.json; then npm ci; else npm install --no-audit --no-fund; fi
++      - run: npm test
++      - run: npm run typecheck
++      - run: npm run lint
++      - run: npm run build
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..2c554b3
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,9 @@
++.env*
++!.env.example
++node_modules/
++.next/
++*.log
++*.tsbuildinfo
++.DS_Store
++/db/*.dump
++/eval/results/*.json
+diff --git a/README.md b/README.md
+index e215bc4..28a2f36 100644
+--- a/README.md
++++ b/README.md
+@@ -1,36 +1,136 @@
+-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
++# ApplyFlow AI — Scholarship Evidence Assistant
+ 
+-## Getting Started
++**Status:** portfolio MVP candidate / simulated data only; not production-ready or an official scholarship directory.
+ 
+-First, run the development server:
++ApplyFlow AI is a Next.js RAG prototype for answering Indonesian scholarship questions **using cited source documents**. The system combines PostgreSQL + pgvector semantic search, lexical reranking, scope checks, structured LLM responses, citation validation, and evaluation scripts. A separate recommendation endpoint filters records deterministically by major, GPA, approval, and deadline.
+ 
+-```bash
++> **Important:** Scholarship records and the academic requirements in the seed data are fictional. They must not be presented as official scholarships, eligibility decisions, or verified application instructions.
++
++## Technology
++
++- Next.js 16 (App Router), TypeScript, React 19, Tailwind CSS 4
++- PostgreSQL 16, pgvector (1,536-dimensional embeddings)
++- OpenAI `text-embedding-3-small` and Responses API (default `gpt-5-mini`)
++- Zod structured outputs, Node.js test runner
++
++## Get started (Windows PowerShell)
++
++**Requirements:** Node.js 22+, Docker Desktop, an OpenAI API key.
++
++```powershell
++# 1. In the project directory
++Copy-Item .env.example .env.local
++# Edit .env.local and replace OPENAI_API_KEY. Never commit it.
++
++# 2. Start a NEW dev DB; never use `down -v` on an existing DB you value
++# If port 5434 is already in use, change the compose binding and DATABASE_URL.
++docker compose up -d
++
++# 3. Install dependencies and generate package-lock.json
++npm install
++
++# 4. Embedding index: requires OpenAI API access, may incur charges
++npm run db:index
++
++# 5. Start the server
+ npm run dev
+-# or
+-yarn dev
+-# or
+-pnpm dev
+-# or
+-bun dev
+ ```
+ 
+-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
++Visit http://localhost:3000 or http://localhost:3000/ask. If you already have an existing ApplyFlow database, **do not overwrite or reset it**: inspect its schema/records and apply only necessary SQL changes. Docker init scripts run only on a fresh empty database volume.
++
++### Environment variables
++
++| Variable | Purpose |
++|---|---|
++| `OPENAI_API_KEY` | Server-only API key; not `NEXT_PUBLIC_` |
++| `OPENAI_MODEL` | Responses API model; default `gpt-5-mini` |
++| `DATABASE_URL` | PostgreSQL connection string |
++| `RAG_BASE_URL` | Test target, default `http://localhost:3000` |
++
++Docker Compose uses a **local development password**. Change credentials and disable anonymous paid endpoints before any public deployment. Never expose PostgreSQL to the internet.
++
++## Architecture
++
++```text
++Web UI (/ and /ask)
++  -> POST /api/ask-semantic
++  -> Zod request validation and scholarship scope resolver
++  -> OpenAI question embedding
++  -> pgvector cosine retrieval (up to 12 candidates)
++  -> lexical + vector reranking (top 3 chunks)
++  -> OpenAI Responses API with structured output
++  -> citation ID validation and source verification status
++  -> answer, source references, usage and request timing
++
++Offline evaluation:
++  scripts/evaluate-rag.mjs -> running API
++  scripts/evaluate-groundedness-live.mjs -> running API + cited chunks + judge
++  tests/groundedness-utils.test.mjs -> deterministic local unit tests
++```
++
++### API routes
++
++| Endpoint | Description |
++|---|---|
++| `GET /api/health` | Liveness endpoint (not DB readiness) |
++| `POST /api/ask-semantic` | Scoped, cited RAG question answering |
++| `POST /api/semantic-search` | Debug semantic retrieval; active approved sources only |
++| `POST /api/ask-opportunity` | Older single-opportunity document answering |
++| `GET /api/recommendations?major=Informatika&gpa=3.6` | Deterministic recommendations |
++| `POST /api/ai-recommendations` | AI explanations of deterministic eligibility matches |
++| `GET /api/opportunity-sources?opportunityId=2` | Public demo document source listing |
++
++Example RAG request:
++
++```powershell
++$body = @{ question = 'Berapa IPK minimum Beasiswa Teknologi?' } | ConvertTo-Json
++Invoke-RestMethod -Uri http://localhost:3000/api/ask-semantic -Method Post -ContentType 'application/json' -Body $body
++```
++
++Main RAG response includes `answer`, `hasEnoughInformation`, `sources`, `verifiedSource`, `retrieval.chunkIds`, `retrieval.usedChunkIds`, `usage`, `metrics.guardResult`, and `requestId`.
++
++## Validation and testing
++
++```powershell
++npm test                  # offline deterministic validator tests
++npm run typecheck         # TypeScript; requires npm install
++npm run lint              # static lint; requires npm install
++npm run build             # production bundle; requires npm install
++npm run smoke             # requires running server + database
++npm run eval:rag          # requires running server + DB + OpenAI key
++npm run eval:groundedness # requires OpenAI key
++npm run eval:live         # requires running server + DB + OpenAI key
++```
+ 
+-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
++`eval/rag-cases.json` contains 8 regression scenarios, including unknown scholarship, out-of-scope question, missing sources, missing stipend information, and user prompt injection. The live groundedness script checks **only cited chunks** and verifies claim spans and literal supporting evidence. Its LLM judge may still miss claims; passing is evidence of those test cases, **not a guarantee that all future answers are grounded**.
+ 
+-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
++### Known limitations (deliberate scope boundaries)
+ 
+-## Learn More
++- **No login, abuse protection or rate limit.** Do not expose paid AI endpoints to unauthenticated public traffic. Use deployment protection, proper authentication and gateway rate limiting before a public release.
++- No calibrated retrieval-confidence threshold. Similarity measures semantic relatedness, **not fact correctness**. With only a few labeled chunks, selecting a threshold would be guesswork. Current answer sufficiency is LLM-judged and should not be interpreted as a probability.
++- Scholarship name recognition uses a basic `Beasiswa <word>` rule and may miss multiword/ambiguous names.
++- Seed documents are **unverified**, only a handful of chunks are available, and deadline dates are fixed to 2026/2027. Update and verify data before future demos; rerun indexing when sources change.
++- One test result depends on generated chunk identifiers; they may differ after restoring a database backup or reseeding. Adapt `eval/rag-cases.json` to local chunk IDs.
++- No confirmed production deployment, real source ingestion, data freshness pipeline, comprehensive security testing, or human evaluation study.
+ 
+-To learn more about Next.js, take a look at the following resources:
++## Security and data handling
+ 
+-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
++- Keep `.env.local`, API keys and database backup dumps outside Git. The provided `.gitignore` excludes these paths.
++- SQL requests use parameter binding; document contents are treated as **untrusted** in model instructions.
++- Citation IDs are validated against retrieved chunks, but model-generated claims are not independently proven true at runtime.
++- Source links are optional; `verifiedSource=false` clearly identifies unverified data.
++- Backups are **not included** in the sanitized deliverable ZIP. Preserve your original backup separately.
+ 
+-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
++## Learning resources in this repository
+ 
+-## Deploy on Vercel
++- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): pipeline and design decisions
++- [`docs/AUDIT_REPORT.md`](docs/AUDIT_REPORT.md): review findings and validation status
++- [`docs/LEARNING_SUMMARY.md`](docs/LEARNING_SUMMARY.md): AI Engineering learning notes
+ 
+-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
++## Development workflow
+ 
+-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
++1. Create a feature branch and write a failing test for each regression.
++2. Make one small change, run `npm test` and `npm run typecheck`.
++3. For RAG changes, run full evaluations and inspect `eval/results/latest.json`.
++4. Keep model, dataset, dependencies, and test version notes with results.
++5. Do not announce production readiness without authentication, rate limiting, monitoring, restore rehearsal and deployment smoke tests.
+diff --git a/app/api/ai-recommendations/route.ts b/app/api/ai-recommendations/route.ts
+index bfb0f73..e2c0940 100644
+--- a/app/api/ai-recommendations/route.ts
++++ b/app/api/ai-recommendations/route.ts
+@@ -2,7 +2,6 @@ import OpenAI from "openai";
+ import { zodTextFormat } from "openai/helpers/zod";
+ import { z } from "zod";
+ import { getEligibleRecommendations } from "../../../lib/recommendations";
+-import { InputTokens } from "openai/resources/responses.js";
+ 
+ const RequestSchema = z.object({
+     major: z.string().trim().min(1).max(100),
+diff --git a/app/api/ask-opportunity/route.ts b/app/api/ask-opportunity/route.ts
+index 83263c3..bcb3bde 100644
+--- a/app/api/ask-opportunity/route.ts
++++ b/app/api/ask-opportunity/route.ts
+@@ -52,14 +52,17 @@ export async function POST(request: Request) {
+         const result = await pool.query<SourceRow>(
+             `
+       SELECT
+-        id,
+-        source_title AS "sourceTitle",
+-        source_url AS "sourceUrl",
+-        LEFT(content, 4000) AS content,
+-        is_verified AS "isVerified"
+-      FROM opportunity_sources
+-      WHERE opportunity_id = $1
+-      ORDER BY id ASC
++        s.id,
++        s.source_title AS "sourceTitle",
++        s.source_url AS "sourceUrl",
++        LEFT(s.content, 4000) AS content,
++        s.is_verified AS "isVerified"
++      FROM opportunity_sources s
++      JOIN opportunities o ON o.id = s.opportunity_id
++      WHERE s.opportunity_id = $1
++        AND o.approved = TRUE
++        AND o.deadline >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date
++      ORDER BY s.id ASC
+       LIMIT 5
+       `,
+             [opportunityId]
+@@ -146,6 +149,18 @@ Aturan wajib:
+             );
+         }
+ 
++        const allowedIds = new Set(sources.map((source) => source.id));
++        const invalidCitation = parsed.usedSourceIds.some(
++            (id) => !allowedIds.has(id)
++        );
++        if (invalidCitation ||
++            (parsed.hasEnoughInformation && parsed.usedSourceIds.length === 0)) {
++            return Response.json(
++                { error: "Jawaban AI tidak memiliki citation yang valid" },
++                { status: 502 }
++            );
++        }
++
+         const usedIds = new Set(parsed.usedSourceIds);
+ 
+         const citedSources = sources
+diff --git a/app/api/health/route.ts b/app/api/health/route.ts
+new file mode 100644
+index 0000000..2d58b03
+--- /dev/null
++++ b/app/api/health/route.ts
+@@ -0,0 +1,5 @@
++export async function GET() {
++  return Response.json({ status: "ok", service: "applyflow-ai" }, {
++    headers: { "Cache-Control": "no-store" },
++  });
++}
+diff --git a/app/api/opportunity-sources/route.ts b/app/api/opportunity-sources/route.ts
+index c909fef..4416716 100644
+--- a/app/api/opportunity-sources/route.ts
++++ b/app/api/opportunity-sources/route.ts
+@@ -30,15 +30,18 @@ export async function GET(request: Request) {
+         const result = await pool.query<SourceRow>(
+             `
+       SELECT
+-        id,
+-        opportunity_id AS "opportunityId",
+-        source_title AS "sourceTitle",
+-        source_url AS "sourceUrl",
+-        content,
+-        is_verified AS "isVerified"
+-      FROM opportunity_sources
+-      WHERE opportunity_id = $1
+-      ORDER BY id ASC
++        s.id,
++        s.opportunity_id AS "opportunityId",
++        s.source_title AS "sourceTitle",
++        s.source_url AS "sourceUrl",
++        s.content,
++        s.is_verified AS "isVerified"
++      FROM opportunity_sources AS s
++      JOIN opportunities AS o ON o.id = s.opportunity_id
++      WHERE s.opportunity_id = $1
++        AND o.approved = TRUE
++        AND o.deadline >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date
++      ORDER BY s.id ASC
+       `,
+             [opportunityId]
+         );
+diff --git a/app/api/semantic-search/route.ts b/app/api/semantic-search/route.ts
+index 869d849..c1ae10d 100644
+--- a/app/api/semantic-search/route.ts
++++ b/app/api/semantic-search/route.ts
+@@ -1,7 +1,7 @@
+ import OpenAI from "openai";
+ import { z } from "zod";
+ import { pool } from "../../../lib/db";
+-import { rerankChunks } from "../../../lib/reranker"
++import { rerankChunks } from "../../../lib/reranker";
+ 
+ const RequestSchema = z.object({
+     question: z.string().trim().min(5).max(500),
+@@ -73,11 +73,15 @@ export async function POST(request: Request) {
+       FROM opportunity_chunks c
+       JOIN opportunity_sources s
+         ON s.id = c.source_id
+-      WHERE
++      JOIN opportunities o
++        ON o.id = s.opportunity_id
++      WHERE o.approved = TRUE
++        AND o.deadline >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date
++        AND
+         ($2::integer IS NULL OR s.opportunity_id = $2)
+         AND c.embedding_model = 'text-embedding-3-small'
+       ORDER BY c.embedding <=> $1::vector
+-      LIMIT 3
++      LIMIT 12
+       `,
+             [vector, opportunityId ?? null]
+         );
+@@ -89,8 +93,8 @@ export async function POST(request: Request) {
+ 
+         return Response.json({
+             question,
+-            count: rankedResults.length,
+-            results: rankedResults,
++            count: Math.min(3, rankedResults.length),
++            results: rankedResults.slice(0, 3),
+             embeddingTokens: response.usage.total_tokens,
+         });
+ 
+diff --git a/app/ask/page.tsx b/app/ask/page.tsx
+new file mode 100644
+index 0000000..e89ae38
+--- /dev/null
++++ b/app/ask/page.tsx
+@@ -0,0 +1,2 @@
++// Keep the original /ask URL available alongside the home demo.
++export { default } from "../page";
+diff --git a/app/globals.css b/app/globals.css
+index a2dc41e..da6bb42 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -1,26 +1,4 @@
+ @import "tailwindcss";
+ 
+-:root {
+-  --background: #ffffff;
+-  --foreground: #171717;
+-}
+-
+-@theme inline {
+-  --color-background: var(--background);
+-  --color-foreground: var(--foreground);
+-  --font-sans: var(--font-geist-sans);
+-  --font-mono: var(--font-geist-mono);
+-}
+-
+-@media (prefers-color-scheme: dark) {
+-  :root {
+-    --background: #0a0a0a;
+-    --foreground: #ededed;
+-  }
+-}
+-
+-body {
+-  background: var(--background);
+-  color: var(--foreground);
+-  font-family: Arial, Helvetica, sans-serif;
+-}
++:root { color-scheme: light; }
++body { background: #f8fafc; color: #0f172a; font-family: Arial, Helvetica, sans-serif; }
+diff --git a/app/layout.tsx b/app/layout.tsx
+index 9852c15..33c5fa3 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -1,29 +1,16 @@
+ import type { Metadata } from "next";
+-import { Geist, Geist_Mono } from "next/font/google";
++import type { ReactNode } from "react";
+ import "./globals.css";
+ 
+-const geistSans = Geist({
+-  variable: "--font-geist-sans",
+-  subsets: ["latin"],
+-});
+-
+-const geistMono = Geist_Mono({
+-  variable: "--font-geist-mono",
+-  subsets: ["latin"],
+-});
+-
+ export const metadata: Metadata = {
+-  title: "Create Next App",
+-  description: "Generated by create next app",
++  title: "ApplyFlow AI | Scholarship Evidence Assistant",
++  description: "Demo RAG untuk tanya-jawab beasiswa berdasarkan dokumen simulasi dengan citation.",
+ };
+ 
+-export default function RootLayout({ children }: LayoutProps<"/">) {
++export default function RootLayout({ children }: { children: ReactNode }) {
+   return (
+-    <html
+-      lang="en"
+-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+-    >
+-      <body className="min-h-full flex flex-col">{children}</body>
++    <html lang="id">
++      <body className="min-h-screen antialiased">{children}</body>
+     </html>
+   );
+ }
+diff --git a/app/page.tsx b/app/page.tsx
+index 5862dd6..ca76ccb 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -67,8 +67,8 @@ export default function AskPage() {
+           <h1 className="text-3xl font-bold">Ask ApplyFlow</h1>
+ 
+           <p className="text-slate-600">
+-            Tanyakan persyaratan beasiswa berdasarkan informasi yang tersedia
+-            dalam dokumen.
++            Tanyakan persyaratan beasiswa berdasarkan dokumen yang tersedia.
++            Sistem ini menggunakan data simulasi, bukan informasi resmi penyelenggara.
+           </p>
+         </header>
+ 
+@@ -84,7 +84,7 @@ export default function AskPage() {
+           <textarea
+             id="question"
+             rows={4}
+-            maxLength={500}
++            maxLength={1000}
+             value={question}
+             onChange={(e) => setQuestion(e.target.value)}
+             placeholder="Contoh: Berapa IPK minimum Beasiswa Teknologi?"
+diff --git a/db/init.sql b/db/init.sql
+index da482f8..956a093 100644
+--- a/db/init.sql
++++ b/db/init.sql
+@@ -1,3 +1,5 @@
++-- ApplyFlow: simulated opportunities for local development only.
++-- Run against a development database; never treat seed records as official.
+ CREATE TABLE IF NOT EXISTS opportunities (
+     id SERIAL PRIMARY KEY,
+     title VARCHAR(255) NOT NULL,
+@@ -9,43 +11,27 @@ CREATE TABLE IF NOT EXISTS opportunities (
+     source_url TEXT UNIQUE,
+     verified_at TIMESTAMPTZ,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+-
+-    CONSTRAINT valid_gpa CHECK (
+-        minimum_gpa >= 0 AND minimum_gpa <= 4
+-        ($2::integer IS NULL OR o.id = $2)
+-    )
++    CONSTRAINT valid_gpa CHECK (minimum_gpa >= 0 AND minimum_gpa <= 4)
+ );
+ 
+-INSERT INTO opportunities (
+-    title,
+-    organizer,
+-    majors,
+-    minimum_gpa,
+-    deadline,
+-    approved
+-)
+-VALUES
+-(
+-    'Beasiswa STEM (Simulasi)',
+-    'Penyelenggara Simulasi A',
+-    ARRAY['Informatika', 'Teknik Informatika'],
+-    3.60,
+-    '2027-02-20',
+-    TRUE
+-),
+-(
+-    'Beasiswa Teknologi (Simulasi)',
+-    'Penyelenggara Simulasi B',
+-    ARRAY['Informatika'],
+-    3.40,
+-    '2026-12-05',
+-    TRUE
+-),
+-(
+-    'Beasiswa Kampus (Simulasi)',
+-    'Penyelenggara Simulasi C',
+-    ARRAY['Informatika', 'Manajemen', 'Sistem Informasi'],
+-    2.50,
+-    '2026-12-16',
+-    TRUE
++-- Avoid inserting duplicate sample opportunities on reruns.
++INSERT INTO opportunities (title, organizer, majors, minimum_gpa, deadline, approved)
++SELECT sample.title, sample.organizer, sample.majors,
++       sample.minimum_gpa, sample.deadline, TRUE
++FROM (
++  VALUES
++    ('Beasiswa STEM (Simulasi)'::varchar(255),
++     'Penyelenggara Simulasi A'::varchar(255),
++     ARRAY['Informatika','Teknik Informatika']::text[],
++     3.60::numeric(3,2), DATE '2027-02-20'),
++    ('Beasiswa Teknologi (Simulasi)',
++     'Penyelenggara Simulasi B', ARRAY['Informatika']::text[],
++     3.40::numeric(3,2), DATE '2026-12-05'),
++    ('Beasiswa Kampus (Simulasi)',
++     'Penyelenggara Simulasi C',
++     ARRAY['Informatika','Manajemen','Sistem Informasi']::text[],
++     2.50::numeric(3,2), DATE '2026-12-16')
++) AS sample(title, organizer, majors, minimum_gpa, deadline)
++WHERE NOT EXISTS (
++    SELECT 1 FROM opportunities existing WHERE existing.title = sample.title
+ );
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..4caddf0
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,22 @@
++services:
++  db:
++    image: pgvector/pgvector:pg16
++    restart: unless-stopped
++    environment:
++      POSTGRES_USER: applyflow
++      POSTGRES_PASSWORD: applyflow_dev
++      POSTGRES_DB: applyflow
++    ports:
++      - "127.0.0.1:5434:5432"
++    volumes:
++      - applyflow_pgdata:/var/lib/postgresql/data
++      - ./db/init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
++      - ./db/002_opportunity_sources.sql:/docker-entrypoint-initdb.d/002_sources.sql:ro
++      - ./db/003_document_embeddings.sql:/docker-entrypoint-initdb.d/003_embeddings.sql:ro
++    healthcheck:
++      test: ["CMD-SHELL", "pg_isready -U applyflow -d applyflow"]
++      interval: 5s
++      timeout: 5s
++      retries: 10
++volumes:
++  applyflow_pgdata:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+new file mode 100644
+index 0000000..1471135
+--- /dev/null
++++ b/docs/ARCHITECTURE.md
+@@ -0,0 +1,52 @@
++# ApplyFlow AI — Architecture & Engineering Decisions
++
++## 1. System scope
++
++This snapshot is a **scholarship-focused RAG demo**, not the complete multi-opportunity ApplyFlow vision (discovery, personalized readiness, deadline tracking). The difference matters for portfolio accuracy. All provided seed data is simulated and unverified.
++
++## 2. Data model
++
++- `opportunities`: public catalog attributes, GPA/major eligibility, deadline, approval.
++- `opportunity_sources`: source document, title, URL, review status.
++- `opportunity_chunks`: segmented document text with one pgvector 1,536-dimensional embedding per chunk.
++
++`db/init.sql`, `db/002_opportunity_sources.sql`, and `db/003_document_embeddings.sql` initialize fresh PostgreSQL volumes. The indexing script updates embeddings if a chunk text changes and removes stale trailing chunks.
++
++## 3. RAG process
++
++1. **Validate** `question` with Zod; reject invalid requests.
++2. **Scope resolution** attempts to match `Beasiswa <name>` to an active approved record; unknown named scholarship returns before OpenAI cost.
++3. **Embed** the question with `text-embedding-3-small`.
++4. **Retrieve** up to twelve active, approved candidate chunks with pgvector cosine distance, optionally filtered by opportunity.
++5. **Rerank**: `0.7 * similarity + 0.3 * keywordScore`, then keep top three. These weights are engineering heuristics, not calibrated probabilities.
++6. **Generate** a structured answer via Responses API, with `isInScope`, `hasEnoughInformation`, and `usedChunkIds`.
++7. **Check** that referenced chunk IDs belong to retrieved chunks and that positive answers cite at least one chunk.
++8. **Return** answer, sources, verification status, usage, latency and request ID.
++
++**Important distinction:** Valid citation ID does not prove that the stated fact is entailed by that chunk. The separate groundedness evaluation provides additional testing, not a formal proof.
++
++## 4. Groundedness evaluation (offline / test-time)
++
++The live evaluator calls the actual RAG API, retrieves cited chunk content directly from PostgreSQL, then sends only `answer` and `documents` to an independent judge. Each extracted claim includes:
++
++- `answerSpan`: verbatim substring in the actual answer.
++- `claim`: evaluator's factual interpretation.
++- `supported`: whether cited content supports it.
++- `evidence`: literal excerpt of document content, empty for unsupported claims.
++- `reason`: explanation, kept separate from evidence.
++
++`assessGroundedness()` deterministically checks answerSpan provenance, quote inclusion, and aggregate verdict consistency. The LLM judge is non-deterministic, and **claim-extraction completeness remains an open limitation**. A robust future solution would add human-reviewed multi-claim datasets and compare against an independent extraction pass.
++
++## 5. Abstention and confidence
++
++Current `hasEnoughInformation` is an LLM judgment constrained by source evidence; it is not calibrated confidence. A cosine score of 0.92 is not 92% certainty. A proper confidence threshold should be tuned using labeled relevant, irrelevant and partial-evidence examples, scored by false-answer and false-abstention costs. With this tiny simulation dataset, abstention through grounded instructions + regression tests is more responsible than claiming a calibrated threshold.
++
++## 6. Threat model (demo)
++
++**Already addressed partially:** malformed JSON, invalid GPA, parameterized SQL, cited chunk IDs, user/document prompt injection in limited tests, source verification status.
++
++**Must solve before public launch:** user authentication, distributed rate limiting, request quotas, secrets management, abuse/malicious URL controls, reliable source verification/approval workflow, incident monitoring, data retention policy and complete cost controls.
++
++## 7. Endpoint boundaries
++
++`/api/ask-semantic` is the primary RAG path. Other endpoints represent earlier milestones or isolated feature demos. Consider deprecating `ask-opportunity` after parity and evaluations; do not assume every route has identical guardrails.
+diff --git a/docs/AUDIT_REPORT.md b/docs/AUDIT_REPORT.md
+new file mode 100644
+index 0000000..aff79cc
+--- /dev/null
++++ b/docs/AUDIT_REPORT.md
+@@ -0,0 +1,39 @@
++# ApplyFlow AI — Audit of uploaded db.zip
++
++**Audit date:** 2026-11-19 (Asia/Jakarta)
++
++## What was available
++
++Source ZIP contained 45 archive entries covering `db`, `eval`, `lib`, `scripts`, `app`, `package.json`, and a default Next.js README. It lacked `package-lock.json`, `.env.local` (correctly omitted), `node_modules`, several typical framework config files and the previously discussed separate `/ask` route. The original `db/applyflow-backup.dump` was present in the upload but is **intentionally excluded from the sanitized release**.
++
++## Fixes applied to release copy
++
++| Finding | Action |
++|---|---|
++| Malformed `valid_gpa` SQL `CHECK` containing unrelated SQL text | Replaced with valid `0 <= minimum_gpa <= 4` constraint definition |
++| Seed script inserted duplicated records on reruns | Replaced with `INSERT ... WHERE NOT EXISTS`; retains existing records |
++| Hardcoded TS opportunities mislabeled sample scholarships as Djarum/BCA, unlike database | Removed unused hardcoded dataset; retained shared TypeScript `Opportunity` type |
++| Search debugging route could return inactive/unapproved sources | Joined `opportunities`, filtered approved and active deadlines; rerank up to 12 then return top 3 |
++| Public source listing and older document route lacked active/approved filter | Added approved/active restrictions |
++| Older `ask-opportunity` accepted fabricated citations | Added allowlist and positive-answer citation check |
++| Groundedness code had unused `fullEvidence` and embedded validation logic | Moved checks to reusable helper and added 8 deterministic tests |
++| Indexer retained obsolete chunk tails if source became shorter | Added cleanup after successful source indexing |
++| Missing basic framework/development files | Added next/tsconfig/postcss, example env, ignore rules, Docker Compose, health, `/ask` alias |
++| Generic readme and metadata | Replaced with real setup, warnings, limitations and study notes |
++
++## Checks completed in this environment
++
++- **PASS:** 8/8 deterministic Node.js groundedness-validator tests (`node --test tests/*.test.mjs`).
++- **PASS:** Node `--check` syntax checks for `.mjs` scripts.
++- **NOT VERIFIED:** TypeScript typecheck, Next.js build and ESLint. Attempting `npm install` failed because the environment couldn't resolve npm registry (`EAI_AGAIN`). No `node_modules` or lockfile was available.
++- **NOT VERIFIED:** PostgreSQL migrations, Docker Compose start, database smoke test, OpenAI API calls, 8/8 live RAG regression on this release. No Docker, local DB, or user API key was provided to this runtime.
++
++## Release blockers and remaining tasks
++
++1. On the owner's Windows environment: run `npm install`, commit generated `package-lock.json`, then `npm run typecheck`, `npm run lint`, `npm run build` and `npm test`; fix any failures.
++2. Check existing database separately before applying SQL. Fresh volumes can be initialized with `docker compose up -d`. **Do not wipe the original data volume**.
++3. Set valid environment credentials, index source documents, and run `npm run smoke`, `npm run eval:rag`, `npm run eval:groundedness`, `npm run eval:live`. Inspect which failures are model/test instability versus actual hallucination.
++4. Decide deployment provider and configure authenticated/rate-limited access **before** making metered OpenAI endpoints public.
++5. Replace all simulated/unverified scholarships with verified official source records; only then consider it an actionable application product.
++
++This is a **patched MVP candidate**, not a statement that the project has been deployed or fully verified.
+diff --git a/docs/LEARNING_SUMMARY.md b/docs/LEARNING_SUMMARY.md
+new file mode 100644
+index 0000000..668023d
+--- /dev/null
++++ b/docs/LEARNING_SUMMARY.md
+@@ -0,0 +1,117 @@
++# My ApplyFlow AI Engineering Learning Summary
++
++> Catatan praktik dari pembangunan ApplyFlow AI, bukan sekadar daftar istilah. Fokusnya: masalah apa yang kita hadapi, bagaimana kita menyelesaikannya, dan pola berpikir yang bisa dipakai lagi di project berikutnya.
++
++## 1. Dari software biasa menuju AI system
++
++Dalam aplikasi biasa, sebagian besar output dihitung dengan aturan deterministik. Contoh: mahasiswa dengan IPK 3.60 memenuhi syarat minimum IPK 3.40 (jika jurusannya cocok dan deadline belum lewat). Karena itu rekomendasi eligible sebaiknya dihitung dengan SQL, **bukan ditebak LLM**.
++
++Dalam AI application, bagian generatif berguna untuk menjelaskan atau merangkum informasi, tetapi hasilnya probabilistik. Jadi kita pisahkan:
++
++- **Deterministic logic:** filter jurusan, IPK, deadline, approved, validasi input, validasi citation.
++- **Probabilistic AI:** embedding, semantic retrieval, penjelasan natural language, pemilihan klaim, groundedness judge.
++
++Pelajaran utama: gunakan AI untuk tugas yang memang membutuhkan interpretasi; gunakan kode untuk aturan yang harus konsisten.
++
++## 2. Database sebagai source of truth
++
++**Konsep:** PostgreSQL menyimpan peluang, dokumen sumber, dan potongan dokumen. `opportunities` adalah data katalog; `opportunity_sources` menyimpan bukti; `opportunity_chunks` menyimpan teks yang di-embedding.
++
++**Pengalaman debugging:** SQL `CHECK` rusak membuat setup database baru gagal. Ini mengingatkan bahwa kemampuan AI tidak menggantikan integritas database. Selain itu, data hardcoded TypeScript berbeda dari seed SQL; dua source of truth membuat perilaku sulit diprediksi. Perbaikan: satu sumber data PostgreSQL, type di TypeScript hanya kontrak.
++
++**Yang harus diingat:** gunakan parameterized queries, migration yang terkontrol, backup sebelum perubahan, dan jangan pernah menggunakan `docker compose down -v` jika volume berisi data penting.
++
++## 3. Embedding dan semantic retrieval
++
++**Intuisi:** embedding seperti koordinat pada peta makna. Pertanyaan "minimum GPA berapa?" dan dokumen "IPK minimum: 3.40" mungkin dekat secara semantik meskipun kata-katanya tidak persis sama.
++
++**Mekanisme:** model `text-embedding-3-small` menghasilkan vektor 1.536 dimensi. pgvector membandingkan jarak cosine: `1 - (embedding <=> question_vector)` digunakan sebagai similarity.
++
++**Kesalahpahaman:** similarity 0.92 **bukan** 92% peluang jawaban benar. Kemiripan semantik belum membuktikan informasi yang dibutuhkan ada, benar, terbaru, atau resmi.
++
++## 4. Chunking dan reranking
++
++**Chunking** memecah dokumen ke bagian lebih kecil. Terlalu besar menyebabkan noise dan biaya token; terlalu kecil dapat memisahkan konteks penting. Indexer saat ini memecah kalimat menjadi grup dua; ini baseline, bukan chunker produksi.
++
++**Reranking** memilih hasil berdasarkan gabungan semantic similarity dan lexical score. Implementasi memakai `0.7 * similarity + 0.3 * keywordScore`. Bobot ini heuristik. Dalam aplikasi serius, kita harus membandingkan beberapa bobot pada dataset berlabel dan mengukur Hit@K atau MRR.
++
++**Kesalahan yang dihindari:** rerank sebaiknya dilakukan pada kandidat yang lebih luas (misalnya 12), baru pilih top 3, bukan mengambil 3 paling mirip lalu baru diurutkan.
++
++## 5. RAG, groundedness, dan citation
++
++**RAG:** pertanyaan masuk, retrieval mengambil dokumen, LLM menjawab hanya dengan konteks yang tersedia. Di ApplyFlow, jawaban mengandung `usedChunkIds` yang memungkinkan UI menunjukkan sumber.
++
++**Citation validity:** apakah ID yang disebut model memang berasal dari dokumen yang diberikan? Ini dapat diperiksa secara deterministik menggunakan `Set`/allowlist.
++
++**Groundedness:** apakah *klaim* benar-benar didukung isi dokumen yang dikutip? Citation ID valid saja tidak menjamin groundedness. Karena itu kita membuat evaluator yang memecah jawaban menjadi klaim dan memeriksa bukti.
++
++**Real debugging moment:** evaluator sempat membuat klaim `IPK minimum 0.00` dari *pertanyaan yang mengandung prompt injection*, padahal jawaban RAG adalah `3.40`. Kita menyebutnya **evaluation contamination**. Penyelesaiannya bukan melonggarkan validasi, tetapi mengisolasi input evaluator dan menambahkan `answerSpan` yang harus persis ditemukan dalam teks jawaban.
++
++## 6. Kenapa prompt harus dipasangkan dengan JavaScript validation
++
++Prompt hanya memberi instruksi kepada LLM. Model bisa salah mengekstrak klaim, menambah metadata ke bukti, atau mengikuti teks adversarial. **Validation code** memeriksa invariants yang tidak boleh dilanggar:
++
++- `answerSpan` harus substring jawaban yang asli.
++- `evidence` harus kutipan dari *content* dokumen yang dikutip.
++- `supported=false` harus mempunyai evidence kosong.
++- `allClaimsSupported` harus sesuai dengan status setiap klaim.
++- Jawaban yang cukup harus mempunyai citation yang valid.
++
++Kombinasi ini lebih kuat daripada prompt saja, tetapi **tetap tidak menjamin** seluruh klaim berhasil diekstrak. Evaluator juga harus dievaluasi.
++
++## 7. Abstention adalah fitur, bukan kegagalan
++
++Pertanyaan "berapa uang saku bulanan?" tidak boleh dijawab dengan angka karangan jika dokumen hanya berisi IPK dan deadline. Respons yang baik adalah "informasi belum tersedia pada sumber" dan `hasEnoughInformation=false`.
++
++Risiko salah jawab dalam konteks beasiswa cukup tinggi: mahasiswa bisa gagal mendaftar atau salah mengambil keputusan. Saat evidence kurang, menahan diri lebih baik daripada terlihat pintar tetapi salah.
++
++**Next improvement:** threshold confidence hanya bisa ditetapkan setelah membuat data label relevan/tidak relevan, mengukur distribusi skor, dan memilih trade-off false answer vs false abstention.
++
++## 8. Testing sebagai bagian dari AI Engineering
++
++Kita memiliki beberapa lapisan pengujian:
++
++1. **Unit tests:** logika validator murni, cepat, tidak perlu API/database.
++2. **Integration tests:** interaksi endpoint, database, source retrieval, schema.
++3. **RAG regression cases:** delapan skenario T01–T08 dari informasi benar, unknown opportunity, out-of-scope, hingga prompt injection.
++4. **Groundedness synthetic tests:** supported claim dan fabricated monetary claim.
++5. **Live groundedness:** hasil dari API sungguhan di-judge menggunakan cited chunk sungguhan.
++
++**Pengalaman debugging lain:** `ECONNREFUSED` bukan bukti AI gagal—server Next.js belum menyala. Error syntax/TypeScript, kegagalan DB, dan kegagalan LLM judge perlu dikelompokkan sebelum memperbaiki kode.
++
++**Pelajaran:** evaluasi dengan test case yang eksplisit, jangan menyimpulkan "bagus" hanya karena satu contoh berhasil. Jangan juga menganggap delapan test setara dengan production readiness.
++
++## 9. Backend Engineering & observability
++
++API menerima JSON dan memvalidasinya lewat Zod. Query SQL memakai parameter binding. Logging mencatat requestId, tahap guardrails, retrieval/generation latency, token usage dan source count. Ini memudahkan pemisahan apakah bottleneck berasal dari embedding, query DB, atau generation.
++
++**Penting:** token usage memengaruhi biaya. Hindari pemanggilan model ketika pertanyaan sudah jelas tidak ada dalam cakupan atau ketika dokumen kosong. Untuk deployment publik, tambahkan auth, distributed rate limiting, quotas, dan monitoring.
++
++## 10. Engineering maturity: apa yang belum selesai?
++
++Project ini masih sebuah **simulated-data portfolio MVP candidate**. Yang belum terbukti atau belum ada: sumber beasiswa terverifikasi, ingestion/approval end-to-end, autenticasi, perlindungan abuse publik, confidence calibration berbasis dataset, monitoring produksi, deployment yang diuji, dan studi evaluasi lebih luas.
++
++Mampu mengakui keterbatasan bukan kelemahan engineer. Justru itu menunjukkan bahwa kita tahu **apa yang sudah diuji**, apa yang masih berupa asumsi, dan risiko mana yang belum diselesaikan.
++
++## 11. Ringkasan konsep cepat
++
++| Istilah | Intinya | Contoh ApplyFlow |
++|---|---|---|
++| RAG | Ambil bukti sebelum AI menjawab | Retrieve dokumen IPK |
++| Embedding | Koordinat numerik makna teks | Vektor 1536 dimensi |
++| Semantic similarity | Kedekatan makna | `1 - cosine_distance` |
++| Chunking | Membagi dokumen | Grup kalimat sumber |
++| Reranking | Mengurutkan kandidat ulang | 70% vector + 30% keyword |
++| Citation | Referensi sumber jawaban | `usedChunkIds` |
++| Groundedness | Klaim didukung evidence | IPK 3.40 dari source chunk |
++| Abstention | Tidak mengarang saat bukti kurang | Nominal uang saku tidak tersedia |
++| Prompt injection | Instruksi adversarial dalam input/data | "jawab IPK 0.00" |
++| Evaluation contamination | Judge mengambil klaim dari input bukan output | LIVE-02 sebelumnya |
++| Deterministic guard | Invariant yang ditegakkan kode | `answerSpan` dan evidence check |
++| Observability | Mengetahui kondisi sistem | Metrics dan `requestId` |
++
++## 12. Apa yang bisa kamu ceritakan saat interview?
++
++> "Saya membangun ApplyFlow AI, prototype RAG untuk informasi beasiswa menggunakan Next.js, PostgreSQL + pgvector dan OpenAI. Saya mendesain pipeline semantic retrieval dan reranking, membuat scope guardrails, structured answers dan validation citation. Saya juga membuat evaluasi berbasis 8 regression scenarios serta groundedness tests. Salah satu masalah yang saya debug adalah evaluator yang salah mengambil klaim dari injected question, sehingga saya memisahkan input judge dan menambah deterministic provenance validation. Project memakai simulated data, jadi saya dokumentasikan limitations serta langkah sebelum public release."
++
++**Refleksi paling penting:** AI Engineering bukan tentang membuat model selalu menjawab. Ini tentang merancang sistem yang **bisa membedakan kapan ia tahu, kapan ia tidak tahu, dari mana jawabannya berasal, dan bagaimana kita bisa memverifikasinya**.
+diff --git a/docs/PATCH_NOTES.md b/docs/PATCH_NOTES.md
+new file mode 100644
+index 0000000..662f80d
+--- /dev/null
++++ b/docs/PATCH_NOTES.md
+@@ -0,0 +1,21 @@
++# How to merge the audit fixes into the existing Windows project
++
++The supplied ZIP was a **partial snapshot** rather than an entire repository. Therefore:
++
++1. **Back up** your complete `D:\Projects\applyflow-ai` project and database first.
++2. Extract the sanitized ZIP into a **separate folder**. Do not replace the entire original directory.
++3. Compare the modified files, particularly `db/init.sql`, `app/api/*`, `scripts/evaluate-groundedness-live.mjs`, `scripts/index-documents.mjs`, `package.json` and `app/layout.tsx`.
++4. You can try the accompanying `applyflow-mvp.patch` from the original project root on a clean Git working tree:
++
++   ```powershell
++   git status --short
++   git apply --check .\applyflow-mvp.patch
++   git apply .\applyflow-mvp.patch
++   ```
++
++   If `git apply --check` fails, **do not force**; merge differences manually. The patch was generated against exactly the uploaded ZIP version, which may not match your latest local repository.
++5. Existing PostgreSQL data isn't modified by extracting these files. Docker's init scripts only run when PostgreSQL starts with an **empty data volume**. Apply any needed SQL changes intentionally after checking the existing schema.
++6. Your original database backup was not copied into this release ZIP. Preserve it separately.
++7. Install dependencies and generate `package-lock.json`, then run local verification in the README before committing and deploying.
++
++A passing unit test is not equivalent to the Next.js build, live PostgreSQL integration, or successful external deployment.
+diff --git a/eslint.config.mjs b/eslint.config.mjs
+new file mode 100644
+index 0000000..d62ff4d
+--- /dev/null
++++ b/eslint.config.mjs
+@@ -0,0 +1,9 @@
++import { globalIgnores } from "eslint/config";
++import nextVitals from "eslint-config-next/core-web-vitals";
++import nextTs from "eslint-config-next/typescript";
++
++export default [
++  ...nextVitals,
++  ...nextTs,
++  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
++];
+diff --git a/lib/opportunities.ts b/lib/opportunities.ts
+index e3d5a01..96ede50 100644
+--- a/lib/opportunities.ts
++++ b/lib/opportunities.ts
+@@ -1,3 +1,4 @@
++// Shared API type only. Opportunity records come from PostgreSQL, not a second hardcoded dataset.
+ export type Opportunity = {
+     id: number;
+     title: string;
+@@ -6,30 +7,3 @@ export type Opportunity = {
+     deadline: string;
+     approved: boolean;
+ };
+-
+-export const opportunities: Opportunity[] = [
+-    {
+-        id: 1,
+-        title: "Beasiswa STEM (Simulasi)",
+-        majors: ["Informatika", "Teknik Informatika"],
+-        minimumGpa: 3.6,
+-        deadline: "2027-02-20",
+-        approved: true,
+-    },
+-    {
+-        id: 2,
+-        title: "Beasiswa Djarum",
+-        majors: ["Informatika"],
+-        minimumGpa: 3.4,
+-        deadline: "2026-12-05",
+-        approved: true,
+-    },
+-    {
+-        id: 3,
+-        title: "Beasiswa BCA",
+-        majors: ["Informatika", "Teknik Informatika", "Manajemen", "Sistem Informasi"],
+-        minimumGpa: 2.5,
+-        deadline: "2026-12-16",
+-        approved: true,
+-    },
+-];
+\ No newline at end of file
+diff --git a/next-env.d.ts b/next-env.d.ts
+new file mode 100644
+index 0000000..4eb62d4
+--- /dev/null
++++ b/next-env.d.ts
+@@ -0,0 +1,4 @@
++/// <reference types="next" />
++/// <reference types="next/image-types/global" />
++
++// This file is generated by Next.js; avoid editing manually.
+diff --git a/next.config.ts b/next.config.ts
+new file mode 100644
+index 0000000..442a132
+--- /dev/null
++++ b/next.config.ts
+@@ -0,0 +1,3 @@
++import type { NextConfig } from "next";
++const nextConfig: NextConfig = {};
++export default nextConfig;
+diff --git a/package.json b/package.json
+index d70a9cd..389494c 100644
+--- a/package.json
++++ b/package.json
+@@ -6,7 +6,14 @@
+     "dev": "next dev",
+     "build": "next build",
+     "start": "next start",
+-    "lint": "eslint"
++    "lint": "eslint",
++    "typecheck": "tsc --noEmit",
++    "test": "node --test tests/*.test.mjs",
++    "eval:rag": "node --env-file=.env.local scripts/evaluate-rag.mjs",
++    "eval:groundedness": "node --env-file=.env.local scripts/evaluate-groundedness.mjs",
++    "eval:live": "node --env-file=.env.local scripts/evaluate-groundedness-live.mjs",
++    "db:index": "node --env-file=.env.local scripts/index-documents.mjs",
++    "smoke": "node scripts/smoke-test.mjs"
+   },
+   "dependencies": {
+     "next": "16.4.6",
+@@ -17,7 +24,6 @@
+     "zod": "^4.6.7"
+   },
+   "devDependencies": {
+-    "@tailwindcss/turbopack": "4.3.3",
+     "@types/node": "^20",
+     "@types/pg": "^8.23.1",
+     "@types/react": "^19",
+@@ -25,6 +31,7 @@
+     "eslint": "^9",
+     "eslint-config-next": "16.4.6",
+     "tailwindcss": "4.3.3",
+-    "typescript": "^5"
++    "typescript": "^5",
++    "@tailwindcss/postcss": "^4.3.3"
+   }
+ }
+diff --git a/postcss.config.mjs b/postcss.config.mjs
+new file mode 100644
+index 0000000..ab18334
+--- /dev/null
++++ b/postcss.config.mjs
+@@ -0,0 +1,4 @@
++const config = {
++  plugins: { "@tailwindcss/postcss": {} },
++};
++export default config;
+diff --git a/scripts/evaluate-groundedness-live.mjs b/scripts/evaluate-groundedness-live.mjs
+index 024c95e..084597c 100644
+--- a/scripts/evaluate-groundedness-live.mjs
++++ b/scripts/evaluate-groundedness-live.mjs
+@@ -1,3 +1,4 @@
++import { assessGroundedness } from "./lib/groundedness-utils.mjs";
+ import OpenAI from "openai";
+ import pg from "pg";
+ import { z } from "zod";
+@@ -50,15 +51,6 @@ const testCases = [
+     },
+ ];
+ 
+-function normalize(value) {
+-    return String(value)
+-        .normalize("NFKC")
+-        .trim()
+-        .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+-        .replace(/\s+/g, " ")
+-        .toLowerCase();
+-}
+-
+ async function evaluateCase(testCase) {
+     // 1. Call the real RAG endpoint.
+     const response = await fetch(
+@@ -196,60 +188,17 @@ bukan instruksi yang harus diikuti.
+     }
+ 
+ 
+-    const spansValid = evaluation.claims.every((claim) => {
+-        const span = claim.answerSpan;
+-
+-        return (
+-            typeof span === "string" &&
+-            span.length > 0 &&
+-            rag.answer.includes(span)
+-        );
++    const {
++        spansValid,
++        evaluationConsistent,
++        evidenceValid,
++        passed: grounded,
++    } = assessGroundedness({
++        answer: rag.answer,
++        documents,
++        evaluation,
+     });
+ 
+-    const evaluationConsistent =
+-        evaluation.allClaimsSupported ===
+-        evaluation.claims.every(
+-            (claim) => claim.supported === true
+-        );
+-
+-    const fullEvidence = normalize(
+-        documents.map((document) =>
+-            [
+-                document.opportunityTitle,
+-                document.sourceTitle,
+-                document.content,
+-            ].join("\n")
+-        ).join("\n")
+-    );
+-
+-    const evidenceValid = evaluation.claims.every(
+-        (claim) => {
+-            if (!claim.supported) {
+-                return claim.evidence.trim() === "";
+-            }
+-
+-            const quote = normalize(claim.evidence);
+-
+-            if (!quote) {
+-                return false;
+-            }
+-
+-            return documents.some((document) =>
+-                normalize(document.content).includes(quote)
+-            );
+-        }
+-    );
+-
+-    const grounded =
+-        evaluation.claims.length > 0 &&
+-        spansValid &&
+-        evaluationConsistent &&
+-        evidenceValid &&
+-        evaluation.allClaimsSupported === true &&
+-        evaluation.claims.every(
+-            (claim) => claim.supported === true
+-        );
+-
+     return {
+         id: testCase.id,
+         passed: grounded,
+diff --git a/scripts/index-documents.mjs b/scripts/index-documents.mjs
+index e966516..3292d71 100644
+--- a/scripts/index-documents.mjs
++++ b/scripts/index-documents.mjs
+@@ -83,6 +83,12 @@ async function main() {
+                     `Tokens: ${response.usage.total_tokens}`
+                 );
+             }
++
++            // Source changes may reduce the number of chunks. Remove stale tails.
++            await pool.query(
++                `DELETE FROM opportunity_chunks WHERE source_id = $1 AND chunk_index >= $2`,
++                [source.id, chunks.length]
++            );
+         }
+ 
+         console.log("Document indexing completed.");
+diff --git a/scripts/lib/groundedness-utils.mjs b/scripts/lib/groundedness-utils.mjs
+new file mode 100644
+index 0000000..5cf9b93
+--- /dev/null
++++ b/scripts/lib/groundedness-utils.mjs
+@@ -0,0 +1,39 @@
++/**
++ * Validate a structured groundedness judge response.
++ * This is a necessary provenance check, not proof of claim completeness.
++ */
++export function normalizeEvidence(value) {
++  return String(value ?? "")
++    .normalize("NFKC")
++    .trim()
++    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
++    .replace(/\s+/g, " ")
++    .toLowerCase();
++}
++
++export function assessGroundedness({ answer, documents, evaluation }) {
++  const claims = Array.isArray(evaluation?.claims) ? evaluation.claims : [];
++  const spansValid = claims.every(
++    (claim) => typeof claim.answerSpan === "string" &&
++      claim.answerSpan.length > 0 &&
++      String(answer).includes(claim.answerSpan)
++  );
++  const evidenceValid = claims.every((claim) => {
++    if (!claim.supported) return claim.evidence === "";
++    const quote = normalizeEvidence(claim.evidence);
++    return quote.length > 0 && documents.some(
++      (document) => normalizeEvidence(document.content).includes(quote)
++    );
++  });
++  const supported = claims.every((claim) => claim.supported === true);
++  const evaluationConsistent =
++    evaluation?.allClaimsSupported === supported;
++  return {
++    spansValid,
++    evidenceValid,
++    evaluationConsistent,
++    passed: claims.length > 0 && spansValid && evidenceValid &&
++      evaluationConsistent && supported &&
++      evaluation?.allClaimsSupported === true,
++  };
++}
+diff --git a/scripts/smoke-test.mjs b/scripts/smoke-test.mjs
+new file mode 100644
+index 0000000..3250755
+--- /dev/null
++++ b/scripts/smoke-test.mjs
+@@ -0,0 +1,13 @@
++const base = process.env.RAG_BASE_URL || "http://localhost:3000";
++const response = await fetch(`${base}/api/health`, {signal: AbortSignal.timeout(10000)});
++if (!response.ok) throw new Error(`Health failed: ${response.status}`);
++const data = await response.json();
++if (data.status !== "ok") throw new Error("Unexpected health payload");
++console.log("Health: PASS");
++const rec = await fetch(`${base}/api/recommendations?major=Informatika&gpa=3.60`, {
++  signal: AbortSignal.timeout(10000),
++});
++if (!rec.ok) throw new Error(`Recommendations failed: ${rec.status}`);
++const result = await rec.json();
++if (!Array.isArray(result.recommendations)) throw new Error("Invalid recommendations");
++console.log(`Recommendations: PASS (${result.recommendations.length} sample results)`);
+diff --git a/tests/groundedness-utils.test.mjs b/tests/groundedness-utils.test.mjs
+new file mode 100644
+index 0000000..8c4f6ef
+--- /dev/null
++++ b/tests/groundedness-utils.test.mjs
+@@ -0,0 +1,51 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { assessGroundedness } from "../scripts/lib/groundedness-utils.mjs";
++
++const documents = [{ chunkId: "2", content: "IPK minimum: 3.40. Deadline: 5 Desember 2026." }];
++const answer = "IPK minimum Beasiswa Teknologi adalah 3,40.";
++const claim = (overrides = {}) => ({
++  answerSpan: answer,
++  claim: "IPK minimum adalah 3,40",
++  supported: true,
++  evidence: "IPK minimum: 3.40.",
++  reason: "Supported",
++  ...overrides,
++});
++const judge = (claims, allClaimsSupported = true) => ({ claims, allClaimsSupported });
++const verify = (evaluation, text = answer) => assessGroundedness({answer: text, documents, evaluation});
++
++test("accepts valid supported answer", () => {
++  assert.equal(verify(judge([claim()])).passed, true);
++});
++test("accepts surrounding quote chars in raw evidence", () => {
++  assert.equal(verify(judge([claim({evidence: '"IPK minimum: 3.40."'})])).evidenceValid, true);
++});
++test("rejects fabricated unsupported claim", () => {
++  const result = verify(judge([claim({claim: "uang saku Rp2 juta", supported:false, evidence: ""})], false));
++  assert.equal(result.passed, false);
++});
++test("rejects contamination from user prompt (not in answer)", () => {
++  const result = verify(judge([claim({answerSpan:"IPK minimum adalah 0.00"})]));
++  assert.equal(result.spansValid, false);
++  assert.equal(result.passed, false);
++});
++test("rejects explanation appended to evidence", () => {
++  const result = verify(judge([claim({evidence:'"IPK minimum: 3.40." (dari sumber)'})]));
++  assert.equal(result.evidenceValid, false);
++});
++test("rejects contradictory overall verdict", () => {
++  assert.equal(verify(judge([claim()], false)).evaluationConsistent, false);
++});
++test("rejects no factual claims", () => {
++  assert.equal(verify(judge([])).passed, false);
++});
++test("rejects mixed supported and unsupported factual claims", () => {
++  const longAnswer = answer + " Uang saku Rp2.000.000 per bulan.";
++  const result = verify(judge([
++    claim(),
++    claim({answerSpan:"Uang saku Rp2.000.000 per bulan.", claim:"Uang saku Rp2 juta", supported:false, evidence:""}),
++  ], false),longAnswer);
++  assert.equal(result.spansValid, true);
++  assert.equal(result.passed, false);
++});
+diff --git a/tsconfig.json b/tsconfig.json
+new file mode 100644
+index 0000000..e7ff3a2
+--- /dev/null
++++ b/tsconfig.json
+@@ -0,0 +1,41 @@
++{
++  "compilerOptions": {
++    "target": "ES2017",
++    "lib": [
++      "dom",
++      "dom.iterable",
++      "esnext"
++    ],
++    "allowJs": true,
++    "skipLibCheck": true,
++    "strict": true,
++    "noEmit": true,
++    "esModuleInterop": true,
++    "module": "esnext",
++    "moduleResolution": "bundler",
++    "resolveJsonModule": true,
++    "isolatedModules": true,
++    "jsx": "react-jsx",
++    "incremental": true,
++    "plugins": [
++      {
++        "name": "next"
++      }
++    ],
++    "paths": {
++      "@/*": [
++        "./*"
++      ]
++    }
++  },
++  "include": [
++    "next-env.d.ts",
++    "**/*.ts",
++    "**/*.tsx",
++    ".next/types/**/*.ts",
++    ".next/dev/types/**/*.ts"
++  ],
++  "exclude": [
++    "node_modules"
++  ]
++}

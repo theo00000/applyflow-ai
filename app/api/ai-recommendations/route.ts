@@ -2,7 +2,6 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { getEligibleRecommendations } from "../../../lib/recommendations";
-import { InputTokens } from "openai/resources/responses.js";
 
 const RequestSchema = z.object({
     major: z.string().trim().min(1).max(100),
