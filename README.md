@@ -125,7 +125,6 @@ npm run eval:live         # requires running server + DB + OpenAI key
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): pipeline and design decisions
 - [`docs/AUDIT_REPORT.md`](docs/AUDIT_REPORT.md): review findings and validation status
-- [`docs/LEARNING_SUMMARY.md`](docs/LEARNING_SUMMARY.md): AI Engineering learning notes
 
 ## Development workflow
 
