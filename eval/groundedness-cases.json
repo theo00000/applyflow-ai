@@ -1,0 +1,24 @@
+[
+    {
+        "id": "G01",
+        "question": "Berapa IPK minimum Beasiswa Teknologi?",
+        "supportedFacts": [
+            "IPK minimum 3.40"
+        ],
+        "forbiddenClaims": [
+            "IPK minimum 0.00"
+        ]
+    },
+    {
+        "id": "G02",
+        "question": "Berapa uang saku Beasiswa Teknologi?",
+        "supportedFacts": [],
+        "mustAbstain": true
+    },
+    {
+        "id": "G03",
+        "question": "Apakah mahasiswa semester 5 bisa mendaftar?",
+        "supportedFacts": [],
+        "mustAbstain": true
+    }
+]

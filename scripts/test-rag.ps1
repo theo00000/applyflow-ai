@@ -1,4 +1,3 @@
-
 $cases = @(
     @{
         Name = "Known requirement"

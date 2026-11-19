@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-11-18T14:56:42.603Z",
+  "generatedAt": "2026-11-19T03:31:04.495Z",
   "summary": {
     "passed": 8,
     "failed": 0,
     "total": 8,
-    "averageLatencyMs": 2627
+    "averageLatencyMs": 4118
   },
   "results": [
     {
@@ -46,13 +46,13 @@
         "2"
       ],
       "retrievalHitAt3": true,
-      "latencyMs": 4751,
-      "retrievalMs": 1727,
-      "generationMs": 2946,
+      "latencyMs": 10626,
+      "retrievalMs": 2144,
+      "generationMs": 7262,
       "usage": {
         "embeddingTokens": 11,
-        "inputTokens": 475,
-        "outputTokens": 126
+        "inputTokens": 494,
+        "outputTokens": 131
       }
     },
     {
@@ -73,7 +73,7 @@
         "citations": true,
         "earlyRejection": true
       },
-      "answer": "Tidak dapat dipastikan dari dokumen yang diberikan. Dokumen menyatakan bahwa informasi tentang semester belum tersedia dalam dataset, sehingga tidak ada dasar untuk menjawab apakah mahasiswa semester 5 boleh mendaftar.",
+      "answer": "Tidak dapat dipastikan dari dokumen yang diberikan. Dokumen menyatakan bahwa informasi tentang semester belum tersedia dalam dataset, sehingga tidak ada cukup informasi untuk menjawab apakah mahasiswa semester 5 boleh mendaftar.",
       "guard": "in_scope",
       "hasEnoughInformation": false,
       "sources": [
@@ -94,13 +94,13 @@
         "3"
       ],
       "retrievalHitAt3": true,
-      "latencyMs": 2748,
-      "retrievalMs": 308,
-      "generationMs": 2415,
+      "latencyMs": 4485,
+      "retrievalMs": 837,
+      "generationMs": 3610,
       "usage": {
         "embeddingTokens": 13,
-        "inputTokens": 476,
-        "outputTokens": 214
+        "inputTokens": 495,
+        "outputTokens": 221
       }
     },
     {
@@ -128,9 +128,9 @@
       "retrievedIds": [],
       "usedIds": [],
       "retrievalHitAt3": null,
-      "latencyMs": 27,
-      "retrievalMs": null,
-      "generationMs": null,
+      "latencyMs": 19,
+      "retrievalMs": 0,
+      "generationMs": 0,
       "usage": {
         "embeddingTokens": 0,
         "inputTokens": 0,
@@ -166,13 +166,13 @@
       ],
       "usedIds": [],
       "retrievalHitAt3": null,
-      "latencyMs": 3451,
-      "retrievalMs": 841,
-      "generationMs": 2588,
+      "latencyMs": 2775,
+      "retrievalMs": 255,
+      "generationMs": 2503,
       "usage": {
         "embeddingTokens": 12,
-        "inputTokens": 474,
-        "outputTokens": 233
+        "inputTokens": 493,
+        "outputTokens": 171
       }
     },
     {
@@ -200,10 +200,14 @@
       "retrievedIds": [],
       "usedIds": [],
       "retrievalHitAt3": null,
-      "latencyMs": 372,
-      "retrievalMs": 345,
-      "generationMs": null,
-      "usage": null
+      "latencyMs": 252,
+      "retrievalMs": 229,
+      "generationMs": 0,
+      "usage": {
+        "embeddingTokens": 10,
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
     },
     {
       "id": "T06",
@@ -223,7 +227,7 @@
         "citations": true,
         "earlyRejection": true
       },
-      "answer": "Saya tidak dapat menyebutkan dokumen administrasi yang wajib disiapkan karena dataset menyatakan bahwa informasi tentang dokumen administrasi belum tersedia. Tidak ada detail dokumen administrasi untuk Beasiswa Teknologi dalam dokumen yang diberikan.",
+      "answer": "Dokumen administrasi yang wajib disiapkan untuk Beasiswa Teknologi tidak tercantum dalam dokumen yang Anda berikan. Sumber menyatakan bahwa informasi tentang semester dan dokumen administrasi belum tersedia dalam dataset, sehingga saya tidak dapat menjelaskan dokumen apa saja yang diperlukan.",
       "guard": "in_scope",
       "hasEnoughInformation": false,
       "sources": [
@@ -244,13 +248,13 @@
         "3"
       ],
       "retrievalHitAt3": null,
-      "latencyMs": 3322,
-      "retrievalMs": 293,
-      "generationMs": 3007,
+      "latencyMs": 5780,
+      "retrievalMs": 268,
+      "generationMs": 5482,
       "usage": {
         "embeddingTokens": 20,
-        "inputTokens": 481,
-        "outputTokens": 311
+        "inputTokens": 500,
+        "outputTokens": 250
       }
     },
     {
@@ -271,7 +275,7 @@
         "citations": true,
         "earlyRejection": true
       },
-      "answer": "Tidak dapat ditentukan dari dokumen yang diberikan: tidak ada informasi mengenai nominal uang saku bulanan Beasiswa Teknologi dalam dataset. (Dokumen menyatakan bahwa informasi administrasi/semester belum tersedia.)",
+      "answer": "Dokumen yang diberikan tidak menyebutkan nominal uang saku bulanan untuk Beasiswa Teknologi. Informasi mengenai uang saku/besaran tunjangan tidak tersedia dalam dataset.",
       "guard": "in_scope",
       "hasEnoughInformation": false,
       "sources": [
@@ -292,13 +296,13 @@
         "3"
       ],
       "retrievalHitAt3": null,
-      "latencyMs": 3459,
-      "retrievalMs": 250,
-      "generationMs": 3177,
+      "latencyMs": 5184,
+      "retrievalMs": 272,
+      "generationMs": 4892,
       "usage": {
         "embeddingTokens": 15,
-        "inputTokens": 478,
-        "outputTokens": 307
+        "inputTokens": 497,
+        "outputTokens": 237
       }
     },
     {
@@ -340,13 +344,13 @@
         "2"
       ],
       "retrievalHitAt3": true,
-      "latencyMs": 2886,
-      "retrievalMs": 305,
-      "generationMs": 2559,
+      "latencyMs": 3825,
+      "retrievalMs": 240,
+      "generationMs": 3557,
       "usage": {
         "embeddingTokens": 33,
-        "inputTokens": 491,
-        "outputTokens": 232
+        "inputTokens": 510,
+        "outputTokens": 134
       }
     }
   ]

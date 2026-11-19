@@ -14,6 +14,27 @@ export type RetrievedChunk = {
     similarity: number;
 };
 
+export type RetrievalDecision = {
+    hasRelevantEvidence: boolean;
+    topSimilarity: number | null;
+    reason:
+    | "relevant"
+    | "low_similarity"
+    | "no_documents";
+};
+
+export function validateCitations(
+    retrievedChunkIds: string[],
+    usedChunkIds: string[]
+): boolean {
+    const allowed = new Set(
+        retrievedChunkIds.map(String)
+    );
+
+    return usedChunkIds.every((id) =>
+        allowed.has(String(id))
+    );
+}
 
 export async function retrieveRelevantChunks(
     question: string,
