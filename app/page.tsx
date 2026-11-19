@@ -1,185 +1,82 @@
-"use client";
+import ScholarshipCard from "./components/scholarships/ScholarshipCard";
+import { developmentScholarships } from "../lib/scholarships/dev-fixtures";
 
-import { useState, type FormEvent } from "react";
+export default function DiscoverPage() {
+  const isDevelopment = process.env.NODE_ENV === "development";
 
-type Source = {
-  id: number;
-  opportunityTitle: string;
-  title: string;
-  url: string | null;
-  isVerified: boolean;
-};
-
-type AnswerResult = {
-  question: string;
-  answer: string;
-  hasEnoughInformation: boolean;
-  sources: Source[];
-  verifiedSource: boolean;
-};
-
-export default function AskPage() {
-  const [question, setQuestion] = useState("");
-  const [result, setResult] = useState<AnswerResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (question.trim().length < 5) return;
-
-    setLoading(true);
-    setError("");
-    setResult(null);
-
-    try {
-      const response = await fetch("/api/ask-semantic", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question: question.trim(),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Gagal menghasilkan jawaban");
-      }
-
-      setResult(data as AnswerResult);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Terjadi kesalahan");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const scholarships = isDevelopment ? developmentScholarships : [];
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-12 text-slate-900">
-      <div className="mx-auto max-w-3xl space-y-8">
-        <header className="space-y-3">
-          <p className="text-sm font-semibold text-indigo-600">APPLYFLOW AI</p>
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="mx-auto w-full min-w-0 max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8"
+    >
+      <header className="space-y-3">
+        <p className="text-sm font-semibold text-neutral-600">
+          SCHOLARSHIP DISCOVERY
+        </p>
 
-          <h1 className="text-3xl font-bold">Ask ApplyFlow</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-app-text sm:text-4xl">
+          Discover Scholarships
+        </h1>
 
-          <p className="text-slate-600">
-            Tanyakan persyaratan beasiswa berdasarkan dokumen yang tersedia.
-            Sistem ini menggunakan data simulasi, bukan informasi resmi penyelenggara.
-          </p>
-        </header>
+        <p className="max-w-2xl text-sm leading-7 text-neutral-600 sm:text-base">
+          Explore scholarship opportunities and review their eligibility
+          requirements, deadlines, and source information.
+        </p>
+      </header>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 rounded-2xl border
-                     border-slate-200 bg-white p-6"
+      {isDevelopment && (
+        <aside
+          aria-label="Development data notice"
+          className="rounded-2xl border border-app-border bg-app-surface p-4 sm:p-5"
         >
-          <label htmlFor="question" className="block text-sm font-medium">
-            Pertanyaanmu
-          </label>
+          <p className="font-semibold text-app-text">Development Preview</p>
 
-          <textarea
-            id="question"
-            rows={4}
-            maxLength={1000}
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Contoh: Berapa IPK minimum Beasiswa Teknologi?"
-            className="w-full rounded-xl border
-                       border-slate-300 p-4
-                       focus:border-indigo-500
-                       focus:outline-none"
-          />
+          <p className="mt-1 text-sm leading-6 text-neutral-600">
+            The scholarships below are simulated records used for interface
+            development. They are not official scholarship announcements.
+          </p>
+        </aside>
+      )}
 
-          <button
-            type="submit"
-            disabled={loading || question.trim().length < 5}
-            className="rounded-xl bg-indigo-600 px-6 py-3
-                       font-medium text-white
-                       hover:bg-indigo-700
-                       disabled:cursor-not-allowed
-                       disabled:opacity-50"
-          >
-            {loading ? "Mencari jawaban..." : "Ask AI"}
-          </button>
-        </form>
+      <section aria-labelledby="scholarships-heading" className="space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="space-y-1">
+            <h2
+              id="scholarships-heading"
+              className="text-xl font-bold text-app-text sm:text-2xl"
+            >
+              Available Scholarships
+            </h2>
 
-        {error && (
-          <div
-            role="alert"
-            className="rounded-xl border border-red-200
-                       bg-red-50 p-4 text-red-700"
-          >
-            {error}
+            <p className="text-sm text-neutral-600">
+              {isDevelopment
+                ? `${scholarships.length} simulated scholarships`
+                : "Scholarship listings are not available yet."}
+            </p>
+          </div>
+        </div>
+
+        {scholarships.length > 0 ? (
+          <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {scholarships.map((scholarship) => (
+              <ScholarshipCard key={scholarship.id} scholarship={scholarship} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-app-border bg-app-surface p-8 text-center">
+            <h3 className="text-lg font-semibold text-app-text">
+              Scholarship listings coming soon
+            </h3>
+
+            <p className="mt-2 text-sm text-neutral-600">
+              Live scholarship data integration has not been implemented yet.
+            </p>
           </div>
         )}
-
-        {result && (
-          <section
-            className="space-y-5 rounded-2xl border
-                              border-slate-200 bg-white p-6"
-          >
-            <h2 className="text-xl font-semibold">Jawaban ApplyFlow</h2>
-
-            <p className="whitespace-pre-wrap leading-7">{result.answer}</p>
-
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Status informasi</p>
-
-              <p className="text-sm text-slate-600">
-                {result.hasEnoughInformation
-                  ? "Informasi untuk menjawab pertanyaan tersedia."
-                  : "Informasi belum cukup untuk menjawab secara pasti."}
-              </p>
-
-              {!result.verifiedSource && (
-                <p
-                  className="rounded-lg bg-amber-50
-                              p-3 text-sm text-amber-800"
-                >
-                  Sumber belum diverifikasi secara resmi. Jangan gunakan sebagai
-                  dasar pendaftaran tanpa memeriksa penyelenggara.
-                </p>
-              )}
-            </div>
-
-            <div
-              className="space-y-3 border-t
-                            border-slate-200 pt-5"
-            >
-              <h3 className="font-semibold">Referensi dokumen</h3>
-
-              {result.sources.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  Tidak ada referensi yang digunakan.
-                </p>
-              ) : (
-                result.sources.map((source) => (
-                  <div key={source.id} className="rounded-xl bg-slate-50 p-4">
-                    <p className="font-medium">{source.opportunityTitle}</p>
-
-                    <p className="text-sm text-slate-600">{source.title}</p>
-
-                    {source.url && /^https?:\/\//i.test(source.url) && (
-                      <a
-                        href={source.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-indigo-600 underline"
-                      >
-                        Lihat dokumen sumber
-                      </a>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        )}
-      </div>
+      </section>
     </main>
   );
 }
