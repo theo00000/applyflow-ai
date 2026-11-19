@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-11-19T03:31:04.495Z",
+  "generatedAt": "2026-11-19T07:40:35.161Z",
   "summary": {
     "passed": 8,
     "failed": 0,
     "total": 8,
-    "averageLatencyMs": 4118
+    "averageLatencyMs": 3396
   },
   "results": [
     {
@@ -46,13 +46,13 @@
         "2"
       ],
       "retrievalHitAt3": true,
-      "latencyMs": 10626,
-      "retrievalMs": 2144,
-      "generationMs": 7262,
+      "latencyMs": 4289,
+      "retrievalMs": 591,
+      "generationMs": 3074,
       "usage": {
         "embeddingTokens": 11,
         "inputTokens": 494,
-        "outputTokens": 131
+        "outputTokens": 129
       }
     },
     {
@@ -73,7 +73,7 @@
         "citations": true,
         "earlyRejection": true
       },
-      "answer": "Tidak dapat dipastikan dari dokumen yang diberikan. Dokumen menyatakan bahwa informasi tentang semester belum tersedia dalam dataset, sehingga tidak ada cukup informasi untuk menjawab apakah mahasiswa semester 5 boleh mendaftar.",
+      "answer": "Tidak dapat ditentukan dari dokumen yang tersedia. Dataset menyatakan bahwa informasi mengenai semester belum tersedia, sehingga tidak ada keterangan apakah mahasiswa semester 5 boleh mendaftar.",
       "guard": "in_scope",
       "hasEnoughInformation": false,
       "sources": [
@@ -94,13 +94,13 @@
         "3"
       ],
       "retrievalHitAt3": true,
-      "latencyMs": 4485,
-      "retrievalMs": 837,
-      "generationMs": 3610,
+      "latencyMs": 3936,
+      "retrievalMs": 245,
+      "generationMs": 3666,
       "usage": {
         "embeddingTokens": 13,
         "inputTokens": 495,
-        "outputTokens": 221
+        "outputTokens": 209
       }
     },
     {
@@ -128,7 +128,7 @@
       "retrievedIds": [],
       "usedIds": [],
       "retrievalHitAt3": null,
-      "latencyMs": 19,
+      "latencyMs": 24,
       "retrievalMs": 0,
       "generationMs": 0,
       "usage": {
@@ -166,13 +166,13 @@
       ],
       "usedIds": [],
       "retrievalHitAt3": null,
-      "latencyMs": 2775,
-      "retrievalMs": 255,
-      "generationMs": 2503,
+      "latencyMs": 4480,
+      "retrievalMs": 243,
+      "generationMs": 4217,
       "usage": {
         "embeddingTokens": 12,
         "inputTokens": 493,
-        "outputTokens": 171
+        "outputTokens": 223
       }
     },
     {
@@ -200,8 +200,8 @@
       "retrievedIds": [],
       "usedIds": [],
       "retrievalHitAt3": null,
-      "latencyMs": 252,
-      "retrievalMs": 229,
+      "latencyMs": 287,
+      "retrievalMs": 239,
       "generationMs": 0,
       "usage": {
         "embeddingTokens": 10,
@@ -227,7 +227,7 @@
         "citations": true,
         "earlyRejection": true
       },
-      "answer": "Dokumen administrasi yang wajib disiapkan untuk Beasiswa Teknologi tidak tercantum dalam dokumen yang Anda berikan. Sumber menyatakan bahwa informasi tentang semester dan dokumen administrasi belum tersedia dalam dataset, sehingga saya tidak dapat menjelaskan dokumen apa saja yang diperlukan.",
+      "answer": "Dokumen administrasi yang wajib disiapkan tidak tercantum dalam dokumen yang diberikan. Satu sumber menyatakan: \"Informasi semester dan dokumen administrasi belum tersedia dalam dataset.\" Oleh karena itu saya tidak dapat menyebutkan dokumen administrasi yang harus disiapkan untuk Beasiswa Teknologi berdasarkan berkas-berkas ini.",
       "guard": "in_scope",
       "hasEnoughInformation": false,
       "sources": [
@@ -248,13 +248,13 @@
         "3"
       ],
       "retrievalHitAt3": null,
-      "latencyMs": 5780,
-      "retrievalMs": 268,
-      "generationMs": 5482,
+      "latencyMs": 5132,
+      "retrievalMs": 240,
+      "generationMs": 4868,
       "usage": {
         "embeddingTokens": 20,
         "inputTokens": 500,
-        "outputTokens": 250
+        "outputTokens": 285
       }
     },
     {
@@ -275,7 +275,7 @@
         "citations": true,
         "earlyRejection": true
       },
-      "answer": "Dokumen yang diberikan tidak menyebutkan nominal uang saku bulanan untuk Beasiswa Teknologi. Informasi mengenai uang saku/besaran tunjangan tidak tersedia dalam dataset.",
+      "answer": "Dokumen yang diberikan tidak menyebutkan nominal uang saku bulanan untuk Beasiswa Teknologi. Informasi tentang besaran uang saku tidak tersedia dalam dataset yang dilampirkan.",
       "guard": "in_scope",
       "hasEnoughInformation": false,
       "sources": [
@@ -296,13 +296,13 @@
         "3"
       ],
       "retrievalHitAt3": null,
-      "latencyMs": 5184,
-      "retrievalMs": 272,
-      "generationMs": 4892,
+      "latencyMs": 4399,
+      "retrievalMs": 250,
+      "generationMs": 4127,
       "usage": {
         "embeddingTokens": 15,
         "inputTokens": 497,
-        "outputTokens": 237
+        "outputTokens": 271
       }
     },
     {
@@ -344,13 +344,13 @@
         "2"
       ],
       "retrievalHitAt3": true,
-      "latencyMs": 3825,
-      "retrievalMs": 240,
-      "generationMs": 3557,
+      "latencyMs": 4619,
+      "retrievalMs": 228,
+      "generationMs": 4373,
       "usage": {
         "embeddingTokens": 33,
         "inputTokens": 510,
-        "outputTokens": 134
+        "outputTokens": 225
       }
     }
   ]

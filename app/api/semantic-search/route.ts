@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { pool } from "../../../lib/db";
-import { rerankChunks } from "../../../lib/reranker"
+import { rerankChunks } from "../../../lib/reranker";
 
 const RequestSchema = z.object({
     question: z.string().trim().min(5).max(500),
@@ -73,11 +73,15 @@ export async function POST(request: Request) {
       FROM opportunity_chunks c
       JOIN opportunity_sources s
         ON s.id = c.source_id
-      WHERE
+      JOIN opportunities o
+        ON o.id = s.opportunity_id
+      WHERE o.approved = TRUE
+        AND o.deadline >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date
+        AND
         ($2::integer IS NULL OR s.opportunity_id = $2)
         AND c.embedding_model = 'text-embedding-3-small'
       ORDER BY c.embedding <=> $1::vector
-      LIMIT 3
+      LIMIT 12
       `,
             [vector, opportunityId ?? null]
         );
@@ -89,8 +93,8 @@ export async function POST(request: Request) {
 
         return Response.json({
             question,
-            count: rankedResults.length,
-            results: rankedResults,
+            count: Math.min(3, rankedResults.length),
+            results: rankedResults.slice(0, 3),
             embeddingTokens: response.usage.total_tokens,
         });
 

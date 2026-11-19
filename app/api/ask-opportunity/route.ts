@@ -52,14 +52,17 @@ export async function POST(request: Request) {
         const result = await pool.query<SourceRow>(
             `
       SELECT
-        id,
-        source_title AS "sourceTitle",
-        source_url AS "sourceUrl",
-        LEFT(content, 4000) AS content,
-        is_verified AS "isVerified"
-      FROM opportunity_sources
-      WHERE opportunity_id = $1
-      ORDER BY id ASC
+        s.id,
+        s.source_title AS "sourceTitle",
+        s.source_url AS "sourceUrl",
+        LEFT(s.content, 4000) AS content,
+        s.is_verified AS "isVerified"
+      FROM opportunity_sources s
+      JOIN opportunities o ON o.id = s.opportunity_id
+      WHERE s.opportunity_id = $1
+        AND o.approved = TRUE
+        AND o.deadline >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date
+      ORDER BY s.id ASC
       LIMIT 5
       `,
             [opportunityId]
@@ -142,6 +145,18 @@ Aturan wajib:
         if (!parsed) {
             return Response.json(
                 { error: "AI tidak menghasilkan jawaban valid" },
+                { status: 502 }
+            );
+        }
+
+        const allowedIds = new Set(sources.map((source) => source.id));
+        const invalidCitation = parsed.usedSourceIds.some(
+            (id) => !allowedIds.has(id)
+        );
+        if (invalidCitation ||
+            (parsed.hasEnoughInformation && parsed.usedSourceIds.length === 0)) {
+            return Response.json(
+                { error: "Jawaban AI tidak memiliki citation yang valid" },
                 { status: 502 }
             );
         }

@@ -82,6 +82,8 @@
         "expectedAnswerAny": [
             "tidak tersedia",
             "tidak disebutkan",
+            "tidak menyebutkan",
+            "tidak cukup informasi",
             "belum",
             "tidak dapat",
             "tidak ada"

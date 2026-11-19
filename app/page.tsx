@@ -67,8 +67,8 @@ export default function AskPage() {
           <h1 className="text-3xl font-bold">Ask ApplyFlow</h1>
 
           <p className="text-slate-600">
-            Tanyakan persyaratan beasiswa berdasarkan informasi yang tersedia
-            dalam dokumen.
+            Tanyakan persyaratan beasiswa berdasarkan dokumen yang tersedia.
+            Sistem ini menggunakan data simulasi, bukan informasi resmi penyelenggara.
           </p>
         </header>
 
@@ -84,7 +84,7 @@ export default function AskPage() {
           <textarea
             id="question"
             rows={4}
-            maxLength={500}
+            maxLength={1000}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Contoh: Berapa IPK minimum Beasiswa Teknologi?"
